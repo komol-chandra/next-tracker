@@ -143,10 +143,17 @@ const seed = async () => {
     departmentIds = departments.map((d) => d._id);
     console.log(`${departments.length} departments seeded`);
 
-    // Seed Tasks with proper owner references
+    // Seed Tasks with proper owner references (owner must be in the same tenant)
     const updatedTasks = replaceTenantPlaceholders(TaskData).map((t, i) => {
-      t.owner = userIds[i % userIds.length];
-      t.ownerName = users[i % users.length].name;
+      const sameTenantUsers = users
+        .map((u, idx) => ({ u, id: userIds[idx] }))
+        .filter((x) => String(x.u.tenant) === String(t.tenant));
+      const byName = sameTenantUsers.find((x) => x.u.name === t.ownerName);
+      const pick = byName || (sameTenantUsers.length ? sameTenantUsers[i % sameTenantUsers.length] : null);
+      if (pick) {
+        t.owner = pick.id;
+        t.ownerName = pick.u.name;
+      }
       return t;
     });
     const tasks = await Task.insertMany(updatedTasks);
@@ -228,7 +235,9 @@ const seed = async () => {
     // Seed TimeEntries
     for (const userId of userIds) {
       const userDoc = await User.findById(userId);
-      const taskForUser = tasks.find((t) => t.owner.toString() === userId.toString()) || tasks[0];
+      const sameTenantTasks = tasks.filter((t) => String(t.tenant) === String(userDoc.tenant));
+      const taskForUser =
+        sameTenantTasks.find((t) => String(t.owner) === userId.toString()) || sameTenantTasks[0] || tasks[0];
       await TimeEntry.insertMany(generateTimeEntries(userDoc.tenant, userId, [taskForUser._id], new Date("2026-10-01"), new Date("2026-10-31")));
     }
     console.log("Time entries seeded for all users");
@@ -266,14 +275,18 @@ const seed = async () => {
     for (let i = 0; i < userIds.length; i++) {
       const isRunning = i % 3 !== 0;
       const userDoc = await User.findById(userIds[i]);
+      const sameTenantTasks = tasks.filter((t) => String(t.tenant) === String(userDoc.tenant));
+      const pool = sameTenantTasks.length ? sameTenantTasks : tasks;
+      const chosen = pool[i % pool.length];
+      const accumulatedSeconds = isRunning ? Math.floor(Math.random() * 3600 * 4) : 0;
       await ActiveTimer.create({
         tenant: userDoc.tenant,
         user: userIds[i],
-        task: tasks[i % tasks.length]._id,
-        taskTitle: tasks[i % tasks.length].title,
-        startedAt: isRunning ? new Date("2026-10-15") : undefined,
+        task: chosen._id,
+        taskTitle: chosen.title,
+        startedAt: isRunning ? new Date(Date.now() - accumulatedSeconds * 1000) : undefined,
         lastResumedAt: isRunning ? new Date() : undefined,
-        accumulatedSeconds: isRunning ? Math.floor(Math.random() * 3600 * 4) : 0,
+        accumulatedSeconds,
         running: isRunning,
         idleDiscardedSeconds: 0,
       });

@@ -168,14 +168,39 @@ app.put("/api/auth/me", async (req, res) => {
 });
 
 // Configuration APIs - protected, tenant-scoped
+const { authorize } = require("./middlewares/authorize");
+
+const SETTINGS_FIELDS = [
+  "idleThresholdSeconds",
+  "defaultWorkingHours",
+  "officeStartTime",
+  "lateGraceMinutes",
+  "monthlySubmissionDay",
+  "approvalWindowDay",
+  "overtimeRateMultiplier",
+  "workingDays",
+  "deductionFormula",
+  "leaveAllowance",
+  "sickCertificateAfterDays",
+];
+
+const TENANT_FIELDS = ["name", "code", "domain", "currency", "timezone", "activePlan"];
+
+const pickFields = (body, fields) => {
+  const out = {};
+  for (const f of fields) {
+    if (body[f] !== undefined) out[f] = body[f];
+  }
+  return out;
+};
+
 app.get("/api/settings", protect, async (req, res) => {
   const Setting = require("./models/Setting");
-  const setting = await Setting.findOne({ tenant: req.tenantId }).lean();
+  let setting = await Setting.findOne({ tenant: req.tenantId }).lean();
   if (!setting) {
-    return res.status(404).json({
-      success: false,
-      message: "Settings not found",
-    });
+    // Create defaults on first access so the UI always has something to edit
+    const created = await Setting.create({ tenant: req.tenantId });
+    setting = created.toObject();
   }
   res.status(200).json({
     success: true,
@@ -183,19 +208,27 @@ app.get("/api/settings", protect, async (req, res) => {
   });
 });
 
-app.put("/api/settings", protect, async (req, res) => {
+app.put("/api/settings", protect, authorize("settings.manage"), async (req, res) => {
   const Setting = require("./models/Setting");
+  const update = pickFields(req.body, SETTINGS_FIELDS);
+
+  if (update.workingDays !== undefined) {
+    const days = update.workingDays;
+    if (!Array.isArray(days) || days.some((d) => !Number.isInteger(d) || d < 0 || d > 6)) {
+      return res.status(400).json({ success: false, message: "workingDays must be an array of 0-6" });
+    }
+  }
+  for (const numField of ["idleThresholdSeconds", "defaultWorkingHours", "lateGraceMinutes", "monthlySubmissionDay", "approvalWindowDay", "sickCertificateAfterDays"]) {
+    if (update[numField] !== undefined && (typeof update[numField] !== "number" || Number.isNaN(update[numField]))) {
+      return res.status(400).json({ success: false, message: `${numField} must be a number` });
+    }
+  }
+
   const updated = await Setting.findOneAndUpdate(
     { tenant: req.tenantId },
-    req.body,
-    { new: true, runValidators: true }
+    { $set: update },
+    { new: true, runValidators: true, upsert: true, setDefaultsOnInsert: true }
   ).lean();
-  if (!updated) {
-    return res.status(404).json({
-      success: false,
-      message: "Settings not found",
-    });
-  }
   res.status(200).json({
     success: true,
     data: updated,
@@ -268,17 +301,22 @@ app.get("/api/tenant", protect, async (req, res) => {
   });
 });
 
-app.put("/api/tenant", protect, async (req, res) => {
+app.put("/api/tenant", protect, authorize("settings.manage"), async (req, res) => {
   // Super Admin can override via X-Tenant-Id header; for anyone else the header is ignored
   let tenantId = req.user.tenant;
   if (req.user.role === "Super Admin" && req.headers["x-tenant-id"]) {
     tenantId = req.headers["x-tenant-id"];
   }
   const Tenant = require("./models/Tenant");
-  const updated = await Tenant.findByIdAndUpdate(tenantId, req.body, {
-    new: true,
-    runValidators: true,
-  }).lean();
+  const update = pickFields(req.body, TENANT_FIELDS);
+  if (update.code !== undefined && typeof update.code === "string") {
+    update.code = update.code.trim().toUpperCase();
+  }
+  const updated = await Tenant.findByIdAndUpdate(
+    tenantId,
+    { $set: update },
+    { new: true, runValidators: true }
+  ).lean();
   if (!updated) {
     return res.status(404).json({
       success: false,

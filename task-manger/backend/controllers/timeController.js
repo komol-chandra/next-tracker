@@ -1,19 +1,61 @@
 const TimeEntry = require("../models/TimeEntry");
 const Timesheet = require("../models/Timesheet");
 const ActiveTimer = require("../models/ActiveTimer");
+const Task = require("../models/Task");
 const User = require("../models/User");
 
 const DEFAULT_WORKING_HOURS = 8;
+
+const elapsedSince = (from, now) => (from ? Math.max(0, Math.round((now - new Date(from)) / 1000)) : 0);
+
+// Finalize an active timer: fold the current run into accumulatedSeconds,
+// create a TimeEntry (if >= 60s), delete the ActiveTimer. Returns the result.
+const finalizeTimer = async (timer, req, now = new Date()) => {
+  if (timer.running && timer.lastResumedAt) {
+    timer.accumulatedSeconds += elapsedSince(timer.lastResumedAt, now);
+    timer.running = false;
+    timer.lastResumedAt = null;
+  }
+  const totalSeconds = Math.max(0, timer.accumulatedSeconds - (timer.idleDiscardedSeconds || 0));
+
+  if (totalSeconds < 60) {
+    await ActiveTimer.findByIdAndDelete(timer._id);
+    return { discarded: true, message: "Timer under 1 minute, discarded" };
+  }
+
+  const durationHours = Number((totalSeconds / 3600).toFixed(2));
+  const entry = await TimeEntry.create({
+    tenant: req.tenantId,
+    user: req.user._id,
+    userName: req.user.name,
+    task: timer.task,
+    taskTitle: timer.taskTitle,
+    date: now.toISOString().split("T")[0],
+    startTime: timer.startedAt,
+    endTime: now,
+    durationHours,
+    category: "Work",
+    source: "timer",
+    status: "Submitted",
+  });
+
+  if (timer.task) {
+    await Task.updateOne({ _id: timer.task }, { $inc: { hoursLogged: durationHours } });
+  }
+
+  await ActiveTimer.findByIdAndDelete(timer._id);
+  return { accumulatedSeconds: totalSeconds, durationHours, entryCreated: true, entryId: entry._id };
+};
 
 exports.getTimer = async (req, res) => {
   const { userId } = req.query || {};
   let filter = { tenant: req.tenantId };
   if (userId) filter.user = userId;
   else filter.user = req.user._id;
-  
+
   let timer = await ActiveTimer.findOne(filter).lean();
   if (!timer) {
-    return res.json({ success: true, data: { running: false, accumulatedSeconds: 0 } });
+    return res.json({ success: true, data: { running: false, accumulatedSeconds: 0, task: null, taskTitle: null } });
   }
   res.json({ success: true, data: timer });
 };
@@ -21,26 +63,28 @@ exports.getTimer = async (req, res) => {
 exports.startTimer = async (req, res) => {
   const { taskId } = req.body;
   const userId = req.user._id;
-  
-  // Auto-stop any running timer for this user
-  await ActiveTimer.findOneAndDelete({ tenant: req.tenantId, user: userId });
-  
-  // Get task title
-  const task = await Task.findById(taskId);
-  const taskTitle = task ? task.title : "Unknown Task";
-  
+
+  if (!taskId) return res.status(400).json({ success: false, message: "taskId is required" });
+  const task = await Task.findOne({ _id: taskId, tenant: req.tenantId });
+  if (!task) return res.status(404).json({ success: false, message: "Task not found" });
+
+  // Auto-stop any existing timer (creates its entry if long enough)
+  const existing = await ActiveTimer.findOne({ tenant: req.tenantId, user: userId });
+  if (existing) await finalizeTimer(existing, req);
+
+  const now = new Date();
   const timer = new ActiveTimer({
     tenant: req.tenantId,
     user: userId,
-    task: taskId,
-    taskTitle,
-    startedAt: new Date(),
-    lastResumedAt: new Date(),
+    task: task._id,
+    taskTitle: task.title,
+    startedAt: now,
+    lastResumedAt: now,
     accumulatedSeconds: 0,
     running: true,
     idleDiscardedSeconds: 0,
   });
-  
+
   await timer.save();
   res.json({ success: true, data: timer });
 };
@@ -48,10 +92,13 @@ exports.startTimer = async (req, res) => {
 exports.pauseTimer = async (req, res) => {
   const userId = req.user._id;
   let timer = await ActiveTimer.findOne({ tenant: req.tenantId, user: userId, running: true });
-  
+
   if (!timer) return res.status(404).json({ success: false, message: "No running timer found" });
-  
+
+  const now = new Date();
+  timer.accumulatedSeconds += elapsedSince(timer.lastResumedAt, now);
   timer.running = false;
+  timer.lastResumedAt = null;
   await timer.save();
   res.json({ success: true, data: timer });
 };
@@ -59,10 +106,9 @@ exports.pauseTimer = async (req, res) => {
 exports.resumeTimer = async (req, res) => {
   const userId = req.user._id;
   let timer = await ActiveTimer.findOne({ tenant: req.tenantId, user: userId, running: false });
-  
+
   if (!timer) return res.status(404).json({ success: false, message: "No paused timer found" });
-  
-  // Calculate idle time since pause and add to accumulated
+
   timer.running = true;
   timer.lastResumedAt = new Date();
   await timer.save();
@@ -72,44 +118,18 @@ exports.resumeTimer = async (req, res) => {
 exports.stopTimer = async (req, res) => {
   const { notes, location } = req.body;
   const userId = req.user._id;
-  
+
   let timer = await ActiveTimer.findOne({ tenant: req.tenantId, user: userId });
-  if (!timer || !timer.running) return res.status(404).json({ success: false, message: "No running timer found" });
-  
-  // Calculate elapsed time
-  const now = new Date();
-  const elapsedMs = now - timer.startedAt;
-  const elapsedSeconds = Math.round(elapsedMs / 1000);
-  timer.accumulatedSeconds += elapsedSeconds;
-  
-  // Discard timers under 1 minute (60 seconds)
-  if (timer.accumulatedSeconds < 60) {
-    await ActiveTimer.findByIdAndDelete(timer._id);
-    return res.json({ success: true, data: { discarded: true, message: "Timer under 1 minute, discarded" } });
+  if (!timer) return res.status(404).json({ success: false, message: "No active timer found" });
+
+  const result = await finalizeTimer(timer, req);
+  if (notes || location) {
+    await TimeEntry.updateOne(
+      { _id: result.entryId },
+      { $set: { ...(notes && { notes }), ...(location && { location }) } }
+    );
   }
-  
-  // Create TimeEntry with source: "timer"
-  await TimeEntry.create({
-    tenant: req.tenantId,
-    user: userId,
-    task: timer.task,
-    taskTitle: timer.taskTitle,
-    date: now.toISOString().split("T")[0],
-    startTime: timer.startedAt,
-    endTime: now,
-    durationHours: (elapsedSeconds / 3600).toFixed(2),
-    category: "Work",
-    location,
-    notes,
-    source: "timer",
-    status: "Submitted",
-  });
-  
-  // Stop the timer
-  timer.running = false;
-  await timer.save();
-  
-  res.json({ success: true, data: { accumulatedSeconds: timer.accumulatedSeconds, entryCreated: true } });
+  res.json({ success: true, data: result });
 };
 
 exports.discardTimer = async (req, res) => {

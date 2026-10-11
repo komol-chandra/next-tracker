@@ -7,8 +7,8 @@ exports.authorize = (...requiredPermissions) => {
       });
     }
 
-    const hasPermission = req.permissions.some((perm) =>
-      requiredPermissions.includes(perm)
+    const hasPermission = req.permissions.some(
+      (perm) => perm === "*" || requiredPermissions.includes(perm)
     );
 
     if (!hasPermission) {
