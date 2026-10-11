@@ -1,0 +1,84 @@
+
+body{
+  margin: 0;
+}
+
+.navbar{
+  display: flex;
+  justify-content: flex-end;
+  background-color: rgb(78, 78, 78);
+  padding: 16px;
+  gap: 10px;
+}
+
+.navbar a, .navbar span {
+  color: white;
+  text-decoration: none;
+}
+
+.navbar span{
+  margin-right: auto;
+}
+
+.hero{
+  height: 200px;
+  background-image: url("https://picsum.photos/1200/900");
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hero-fixed{
+  background-attachment: fixed;
+  background-size: 100%;
+}
+
+.hero-sliding{
+  background-size: 120% auto;
+  animation: slide-bg 14s ease-in-out infinite alternate;
+}
+
+@keyframes slide-bg{
+  from {background-position: left center;}
+  to {background-position: right center;}
+}
+
+.hero h1{
+  color: white;
+  background-color: rgb(0,0,0,0.5);
+  padding: 15px 30px;
+  border-radius: 6px;
+}
+
+.card-list{
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  margin: 5px;
+}
+
+.card{
+  flex: 0 0 160px;
+  background-color: rgb(67, 128, 101);
+  padding: 20px;
+  text-align: center;
+  border-radius: 8px;
+  text-decoration: none;
+  color: white;
+}
+
+.signup-form{
+  max-width: 250px;
+  margin: 100px auto;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+input {
+  padding: 5px 8px;
+  border: 1px solid grey;
+  border-radius: 5px;
+}

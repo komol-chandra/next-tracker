@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npm install*)",
+      "Bash(npm i *)",
+      "Bash(npx tsc*)",
+      "Bash(node -v)",
+      "Bash(docker ps*)",
+      "Bash(curl -s http://localhost:5000/*)",
+      "Bash(curl -s localhost:5000/*)"
+    ],
+    "deny": [
+      "Read(./backend/.env)",
+      "Edit(../task-manger-moc/**)",
+      "Edit(../SE331-Design-Capstone-Project-main/**)"
+    ]
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Workforce & Task Manager OS",
+  "description": "Multi-tenant workforce ERP featuring dashboard operations, web time tracking with idle detection, task management, leave & holiday management, and Spatie RBAC.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
