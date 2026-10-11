@@ -1,4 +1,11 @@
-const faker = require("faker");
+const CITIES = ["Dhaka", "Chattogram", "New York", "London", "Toronto", "Dubai"];
+const NOTES = [
+  "Completed sprint task",
+  "Worked on API integration",
+  "Reviewed pull request",
+  "Fixed reported bug",
+  "Updated documentation",
+];
 
 const randomEnum = (enumValues) => {
   return enumValues[Math.floor(Math.random() * enumValues.length)];
@@ -23,11 +30,16 @@ const generateAttendanceDays = (startDate, endDate) => {
     const dayOfWeek = current.getDay();
     if (dayOfWeek !== 0 && dayOfWeek !== 6) {
       // Skip weekends
+      const day = new Date(current);
+      const clockIn = new Date(day);
+      clockIn.setHours(9, 0, 0, 0);
+      const clockOut = new Date(day);
+      clockOut.setHours(17, 0, 0, 0);
       days.push({
-        date: current.toISOString().split("T")[0],
+        date: day.toISOString().split("T")[0],
         status: Math.random() > 0.3 ? "Present" : ["Late", "Half-Day", "Absent", "Leave"][Math.floor(Math.random() * 4)],
-        clockIn: current.setHours(9, 0, 0),
-        clockOut: current.setHours(17, 0, 0),
+        clockIn,
+        clockOut,
         durationMinutes: 480 + Math.floor(Math.random() * 120),
       });
     }
@@ -36,7 +48,7 @@ const generateAttendanceDays = (startDate, endDate) => {
   return days;
 };
 
-const generateTimeEntries = (userId, taskIds, startDate, endDate) => {
+const generateTimeEntries = (tenant, userId, taskIds, startDate, endDate) => {
   const entries = [];
   const current = new Date(startDate);
   while (current <= endDate) {
@@ -44,7 +56,7 @@ const generateTimeEntries = (userId, taskIds, startDate, endDate) => {
       const taskId = taskIds[Math.floor(Math.random() * taskIds.length)];
       const duration = (Math.random() * 8).toFixed(2);
       entries.push({
-        tenant: faker.random.uuid(),
+        tenant,
         user: userId,
         task: taskId,
         date: current.toISOString().split("T")[0],
@@ -52,8 +64,8 @@ const generateTimeEntries = (userId, taskIds, startDate, endDate) => {
         endTime: new Date(current.getTime() + parseFloat(duration) * 60 * 60 * 1000),
         durationHours: parseFloat(duration),
         category: ["Work", "Meeting", "Training"][Math.floor(Math.random() * 3)],
-        location: faker.address.city(),
-        notes: faker.lorem.sentence(),
+        location: CITIES[Math.floor(Math.random() * CITIES.length)],
+        notes: NOTES[Math.floor(Math.random() * NOTES.length)],
         source: ["timer", "manual"][Math.floor(Math.random() * 2)],
         status: ["Draft", "Submitted", "Approved"][Math.floor(Math.random() * 3)],
       });

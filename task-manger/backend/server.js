@@ -1,8 +1,11 @@
 // server.js
 // Entry point - keeps "creating the app" separate from "starting the server".
 // This separation also makes automated testing easier later.
-
 require("dotenv").config();
+
+// Fix for MongoDB driver crypto issue in some environments
+global.crypto = require("crypto");
+
 const app = require("./app");
 const connectDB = require("./config/db");
 

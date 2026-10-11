@@ -3,7 +3,7 @@ const toJSON = require("./plugins/toJSON");
 
 const attendanceSchema = new mongoose.Schema(
   {
-    tenant: { type: mongoose.Schema.Types.ObjectId, ref: "Tenant", required: true, index: true, unique: true },
+    tenant: { type: mongoose.Schema.Types.ObjectId, ref: "Tenant", required: true, index: true },
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     userName: { type: String },
     date: { type: String, required: true },
@@ -20,6 +20,8 @@ const attendanceSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+attendanceSchema.index({ tenant: 1, user: 1, date: 1 }, { unique: true });
 
 attendanceSchema.set("toJSON", {
   virtuals: true,

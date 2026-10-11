@@ -3,8 +3,8 @@ const toJSON = require("./plugins/toJSON");
 
 const payrollSchema = new mongoose.Schema(
   {
-    tenant: { type: mongoose.Schema.Types.ObjectId, ref: "Tenant", required: true, index: true, unique: true },
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true, unique: true },
+    tenant: { type: mongoose.Schema.Types.ObjectId, ref: "Tenant", required: true, index: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     employeeName: { type: String, required: true },
     empCode: { type: String, required: true },
     dept: { type: String },
@@ -28,6 +28,8 @@ const payrollSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+payrollSchema.index({ tenant: 1, user: 1, month: 1 }, { unique: true });
 
 payrollSchema.set("toJSON", {
   virtuals: true,

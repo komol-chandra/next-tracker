@@ -3,7 +3,7 @@ const toJSON = require("./plugins/toJSON");
 
 const holidaySchema = new mongoose.Schema(
   {
-    tenant: { type: mongoose.Schema.Types.ObjectId, ref: "Tenant", required: true, index: true, unique: true },
+    tenant: { type: mongoose.Schema.Types.ObjectId, ref: "Tenant", required: true, index: true },
     title: { type: String, required: true },
     date: { type: Date, required: true },
     type: { type: String, enum: ["National", "Religious", "Company"] },

@@ -7,7 +7,7 @@ const departmentSchema = new mongoose.Schema(
     name: { type: String, required: true },
     code: { type: String, required: true },
     budget: { type: Number },
-    hod: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    hod: { type: String },
     hodName: { type: String },
     teams: [
       {

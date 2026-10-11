@@ -42,11 +42,9 @@ timesheetSchema.set("toJSON", {
   },
 });
 
-timesheetSchema.pre("save", function (next) {
+timesheetSchema.pre("save", function () {
   const daily = this.dailyHours;
-  const hours = daily.mon + daily.tue + daily.wed + daily.thu + daily.fri + daily.sat + daily.sun;
-  this.totalHours = hours;
-  next();
+  this.totalHours = daily.mon + daily.tue + daily.wed + daily.thu + daily.fri + daily.sat + daily.sun;
 });
 
 timesheetSchema.index({ tenant: 1, user: 1, weekStart: 1 }, { unique: true });

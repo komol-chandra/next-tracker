@@ -3,8 +3,8 @@ const toJSON = require("./plugins/toJSON");
 
 const leaveBalanceSchema = new mongoose.Schema(
   {
-    tenant: { type: mongoose.Schema.Types.ObjectId, ref: "Tenant", required: true, index: true, unique: true },
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true, unique: true },
+    tenant: { type: mongoose.Schema.Types.ObjectId, ref: "Tenant", required: true, index: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     year: { type: Number, required: true },
     casualTotal: { type: Number, default: 10 },
     casualUsed: { type: Number, default: 0 },
@@ -16,6 +16,8 @@ const leaveBalanceSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+leaveBalanceSchema.index({ tenant: 1, user: 1, year: 1 }, { unique: true });
 
 leaveBalanceSchema.set("toJSON", {
   virtuals: true,

@@ -34,7 +34,10 @@ exports.protect = async (req, res, next) => {
     }
 
     req.tenantId = req.user.tenant;
-    req.permissions = req.user.rolePermissions || [];
+    req.permissions =
+      typeof req.user.getPermissions === "function"
+        ? req.user.getPermissions()
+        : [];
 
     next();
   } catch (err) {

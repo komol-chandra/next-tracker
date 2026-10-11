@@ -3,15 +3,17 @@ const toJSON = require("./plugins/toJSON");
 
 const roleSchema = new mongoose.Schema(
   {
-    tenant: { type: mongoose.Schema.Types.ObjectId, ref: "Tenant", required: true, index: true },
+    tenant: { type: String, required: true, index: true },
     scope: { type: String, enum: ["self", "team", "department", "tenant"] },
     isSystem: { type: Boolean, default: false },
-    name: { type: String, required: true, unique: true, index: true },
+    name: { type: String, required: true, index: true },
     guard: { type: String, default: "api" },
-    permissions: [{ type: String, enum: [] }],
+    permissions: [{ type: String }],
   },
   { timestamps: true }
 );
+
+roleSchema.index({ tenant: 1, name: 1 }, { unique: true });
 
 roleSchema.set("toJSON", {
   virtuals: true,
